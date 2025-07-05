@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Call Agent - Real-time Voice</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .status.connected { background-color: #d4edda; color: #155724; }
+        .status.disconnected { background-color: #f8d7da; color: #721c24; }
+        .status.processing { background-color: #fff3cd; color: #856404; }
+        .status.speaking { background-color: #cce5ff; color: #004085; }
+        .controls {
+            margin: 20px 0;
+        }
+        button {
+            padding: 12px 24px;
+            margin: 5px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .start-btn { background-color: #28a745; color: white; }
+        .stop-btn { background-color: #dc3545; color: white; }
+        .interrupt-btn { background-color: #ffc107; color: black; }
+        .interrupt-btn:disabled { background-color: #6c757d; cursor: not-allowed; }
+        .test-btn { background-color: #007bff; color: white; }
+        .log {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 15px;
+            height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 14px;
+        }
+        .audio-player {
+            margin: 10px 0;
+        }
+        .conversation-status {
+            display: flex;
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .status-item {
+            padding: 10px;
+            background-color: #e9ecef;
+            border-radius: 5px;
+            text-align: center;
+        }
+        .status-item.active {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .status-item.processing {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+        .status-item.speaking {
+            background-color: #cce5ff;
+            color: #004085;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🤖 AI Call Agent - Real-time Voice</h1>
+        
+        <div id="connectionStatus" class="status disconnected">
+            Disconnected
+        </div>
+        
+        <div class="conversation-status">
+            <div class="status-item" id="speakingStatusItem">
+                <strong>Speaking:</strong> <span id="speakingStatus">No</span>
+            </div>
+            <div class="status-item" id="processingStatusItem">
+                <strong>Processing:</strong> <span id="processingStatus">No</span>
+            </div>
+            <div class="status-item" id="interruptedStatusItem">
+                <strong>Interrupted:</strong> <span id="interruptedStatus">No</span>
+            </div>
+            <div class="status-item">
+                <strong>Context:</strong> <span id="contextLength">0</span>
+            </div>
+        </div>
+        
+        <div class="controls">
+            <button id="startBtn" class="start-btn">Start Conversation</button>
+            <button id="stopBtn" class="stop-btn" disabled>Stop Conversation</button>
+            <button id="interruptBtn" class="interrupt-btn" disabled>Interrupt AI</button>
+            <button id="testBtn" class="test-btn">Test Speech</button>
+        </div>
+        
+        <div class="audio-player">
+            <audio id="audioPlayer" controls style="width: 100%;"></audio>
+        </div>
+        
+        <div class="log" id="log"></div>
+    </div>
+
+    <script>
+        // Initialize Socket.IO
+        const socket = io();
+        let isConnected = false;
+        let isSpeaking = false;
+        let isProcessing = false;
+        let isInterrupted = false;
+        let audioQueue = [];
+        let currentAudioContext = null;
+        
+        // DOM elements
+        const connectionStatus = document.getElementById('connectionStatus');
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const interruptBtn = document.getElementById('interruptBtn');
+        const testBtn = document.getElementById('testBtn');
+        const audioPlayer = document.getElementById('audioPlayer');
+        const log = document.getElementById('log');
+        const speakingStatus = document.getElementById('speakingStatus');
+        const processingStatus = document.getElementById('processingStatus');
+        const interruptedStatus = document.getElementById('interruptedStatus');
+        const contextLength = document.getElementById('contextLength');
+        
+        // Status elements
+        const speakingStatusItem = document.getElementById('speakingStatusItem');
+        const processingStatusItem = document.getElementById('processingStatusItem');
+        const interruptedStatusItem = document.getElementById('interruptedStatusItem');
+        
+        // Logging function
+        function addLog(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.innerHTML = `<span style="color: #666;">[${timestamp}]</span> ${message}`;
+            log.appendChild(logEntry);
+            log.scrollTop = log.scrollHeight;
+        }
+        
+        // Update status displays
+        function updateStatus() {
+            speakingStatus.textContent = isSpeaking ? 'Yes' : 'No';
+            processingStatus.textContent = isProcessing ? 'Yes' : 'No';
+            interruptedStatus.textContent = isInterrupted ? 'Yes' : 'No';
+            
+            // Update button states
+            interruptBtn.disabled = !isSpeaking && !isProcessing;
+            
+            // Update status item colors
+            speakingStatusItem.className = 'status-item' + (isSpeaking ? ' speaking' : '');
+            processingStatusItem.className = 'status-item' + (isProcessing ? ' processing' : '');
+            interruptedStatusItem.className = 'status-item' + (isInterrupted ? ' active' : '');
+        }
+        
+        // Audio handling
+        function playAudioChunk(audioData) {
+            try {
+                const audioBlob = new Blob([Uint8Array.from(atob(audioData), c => c.charCodeAt(0))], { type: 'audio/mpeg' });
+                const audioUrl = URL.createObjectURL(audioBlob);
+                
+                const audio = new Audio(audioUrl);
+                audio.onended = () => {
+                    URL.revokeObjectURL(audioUrl);
+                };
+                audio.play();
+            } catch (error) {
+                addLog(`Error playing audio: ${error.message}`, 'error');
+            }
+        }
+        
+        // Socket.IO event handlers
+        socket.on('connect', () => {
+            isConnected = true;
+            connectionStatus.textContent = 'Connected';
+            connectionStatus.className = 'status connected';
+            addLog('Connected to server');
+        });
+        
+        socket.on('disconnect', () => {
+            isConnected = false;
+            connectionStatus.textContent = 'Disconnected';
+            connectionStatus.className = 'status disconnected';
+            addLog('Disconnected from server');
+        });
+        
+        socket.on('conversation_started', (data) => {
+            addLog('Conversation started');
+            startBtn.disabled = true;
+            stopBtn.disabled = false;
+            isInterrupted = false;
+            updateStatus();
+        });
+        
+        socket.on('conversation_ended', (data) => {
+            addLog('Conversation ended');
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
+            interruptBtn.disabled = true;
+            isSpeaking = false;
+            isProcessing = false;
+            isInterrupted = false;
+            updateStatus();
+        });
+        
+        socket.on('processing_started', (data) => {
+            addLog('AI is thinking...');
+            isProcessing = true;
+            updateStatus();
+        });
+        
+        socket.on('ai_response_started', (data) => {
+            addLog(`AI Response: ${data.text}`);
+            isSpeaking = true;
+            isProcessing = false;
+            updateStatus();
+        });
+        
+        socket.on('audio_chunk', (data) => {
+            addLog(`Audio chunk ${data.chunk_index + 1}/${data.total_chunks}`);
+            playAudioChunk(data.audio_data);
+        });
+        
+        socket.on('response_complete', (data) => {
+            addLog('AI response completed');
+            isSpeaking = false;
+            isProcessing = false;
+            updateStatus();
+        });
+        
+        socket.on('interruption_detected', (data) => {
+            addLog('Interruption detected - stopping AI');
+            isSpeaking = false;
+            isProcessing = false;
+            isInterrupted = true;
+            updateStatus();
+        });
+        
+        socket.on('interruption_handled', (data) => {
+            addLog('Interruption handled');
+            isSpeaking = false;
+            isProcessing = false;
+            isInterrupted = true;
+            updateStatus();
+        });
+        
+        socket.on('conversation_status', (data) => {
+            if (data.error) {
+                addLog(`Status error: ${data.error}`, 'error');
+            } else {
+                isSpeaking = data.is_speaking;
+                isProcessing = data.processing;
+                isInterrupted = data.interrupted;
+                contextLength.textContent = data.context_length;
+                updateStatus();
+            }
+        });
+        
+        socket.on('text_chunk', (data) => {
+            speakText(data.text_chunk);
+        });
+        
+        socket.on('error', (data) => {
+            addLog(`Error: ${data.message}`, 'error');
+        });
+        
+        // Button event handlers
+        startBtn.addEventListener('click', () => {
+            socket.emit('start_conversation', {});
+            addLog('Starting conversation...');
+        });
+        
+        stopBtn.addEventListener('click', () => {
+            socket.emit('end_conversation', {});
+            addLog('Ending conversation...');
+        });
+        
+        interruptBtn.addEventListener('click', () => {
+            socket.emit('interrupt', {});
+            addLog('Sending interruption signal...');
+        });
+        
+        testBtn.addEventListener('click', () => {
+            simulateUserSpeech();
+        });
+        
+        // Simulate user speech (for testing)
+        function simulateUserSpeech() {
+            const testMessages = [
+                "Hello, I need help with software development",
+                "What services do you offer?",
+                "Can you help me with a web application?",
+                "Tell me about your AI development services",
+                "I want to build a mobile app",
+                "What are your pricing plans?"
+            ];
+            
+            const randomMessage = testMessages[Math.floor(Math.random() * testMessages.length)];
+            socket.emit('user_speech', { text: randomMessage });
+            addLog(`Simulated user speech: "${randomMessage}"`);
+        }
+        
+        function speakText(text) {
+            if ('speechSynthesis' in window) {
+                const utterance = new SpeechSynthesisUtterance(text);
+                // Optionally set voice, rate, pitch, etc.
+                window.speechSynthesis.speak(utterance);
+            } else {
+                addLog('Web Speech API not supported in this browser.', 'error');
+            }
+        }
+        
+        // Initial status update
+        updateStatus();
+        addLog('Page loaded - ready to connect');
+    </script>
+</body>
+</html> 

@@ -1,0 +1,40 @@
+{
+    "company_overview": [
+      "Technology Mindz is a next‑generation IT services and solutions provider headquartered in Cupertino, California, with over a decade of expertise in design, development, and support, helping enterprises reimagine their digital capabilities.",
+      "Founded in 2012 (operational for 10+ years), the company specializes in Salesforce consulting and implementation, AI & machine learning, staff augmentation, and full‑stack application development.",
+      "They have delivered global projects across various industries including financial services, healthcare, real estate, non‑profit, education, and e‑commerce."
+    ],
+    "services": [
+      "Salesforce consulting, implementation, customization, audit, integration, data migration, report & dashboard services and managed support",
+      "Artificial Intelligence & Machine Learning solutions, including generative AI consulting, AI demos, prompt engineering, and custom model integration",
+      "Web and mobile app development using modern full‑stack technologies",
+      "Staff augmentation across Salesforce, Java, DevOps, and other technology domains",
+      "Managed IT services including disaster recovery, cybersecurity, backup & restore, fractional CIO support, and RPA (Robotic Process Automation)"
+    ],
+    "ai_services": [
+      "Generative AI development, integration, and consulting (including prompt engineering)",
+      "Natural language processing, chatbots, document classification, contract generation, intelligent legal and mental‑health AI demos",
+      "Custom AI model training and deployment using frameworks such as TensorFlow/PyTorch integrated via Salesforce Einstein Studio BYOM",
+      "Predictive analytics, business intelligence and sentiment analysis embedded within Salesforce solutions",
+      "AI‑driven RPA pipelines and automated workflows for data extraction and process efficiency"
+    ],
+    "salesforce_services": [
+      "Salesforce CRM implementation & customization (Sales Cloud, Service Cloud, Marketing Cloud, Pardot, Field Service Lightning, CPQ)",
+      "Custom Salesforce app development (Apex, Lightning, integrations and accelerators)",
+      "Workflow automation using Salesforce Flow, case management, omni‑channel routing, service contracts, entitlements and knowledge base setup",
+      "Data migration and integration with ERP, CTI systems, e‑commerce platforms, telephony, APIs and legacy systems",
+      "Salesforce consulting, audits, code reviews, staff augmentation and training services"
+    ],
+    "technologies": [
+      "Salesforce Apex, Lightning, Einstein, Einstein Studio BYOM, Marketing GPT, Service GPT",
+      "AI/ML frameworks: TensorFlow, PyTorch, LLMs coupled with Salesforce Data Cloud and GPT integration",
+      "Full‑stack web & mobile: Modern JavaScript frameworks, React, Node.js and Python (implied by services)",
+      "Cloud platforms: AWS, Azure, Google Cloud (for intelligent demos and backend infrastructure)",
+      "RPA and DevOps: Salesforce Flow, robotic process automation, Salesforce Service Cloud Voice with Amazon Connect, containerization tools"
+    ],
+    "contact": [
+      "Contact via +1 (888) 982-4016 or info@technologymindz.com for a free consultation",
+      "They offer flexible engagement models including outcome‑based and subscription pricing",
+      "Available for both short‑term projects and long‑term partnerships with 24/7 technical support and maintenance"
+    ]
+  }
