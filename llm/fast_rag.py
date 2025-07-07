@@ -3,8 +3,6 @@ import logging
 import numpy as np
 from typing import List, Dict, Any
 from dotenv import load_dotenv
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
 from langchain_groq import ChatGroq
 from groq import Groq
 import time
@@ -13,6 +11,8 @@ from functools import lru_cache
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from collections import OrderedDict
+from sentence_transformers import SentenceTransformer
+import faiss
 
 load_dotenv()
 
@@ -79,21 +79,15 @@ class FastRAG:
         self.llm = ChatGroq(
             groq_api_key=GROQ_API_KEY, 
             model_name="llama3-8b-8192",  # Faster model than 70b
-            temperature=0.1,  # Lower temperature for faster, more consistent responses
+            temperature=0.4,  # Lower temperature for faster, more consistent responses
             max_tokens=150  # Limit tokens for faster generation
         )
         
-        # Initialize TF-IDF vectorizer (optimized for speed)
-        self.vectorizer = TfidfVectorizer(
-            max_features=500,  # Reduced from 1000 for faster processing
-            stop_words='english',
-            ngram_range=(1, 1),  # Only unigrams for speed
-            min_df=1,
-            max_df=0.95
-        )
-        
+        # Initialize embedding model and FAISS index
+        self.embedder = SentenceTransformer("all-MiniLM-L6-v2")
+        self.faiss_index = None
         self.documents = []
-        self.tfidf_matrix = None
+        self.doc_embeddings = None
         
         # TTL Cache for responses (5 minutes)
         self.response_cache = TTLCache(maxsize=200, ttl=300)
@@ -105,43 +99,37 @@ class FastRAG:
             self.add_documents(documents)
     
     def add_documents(self, documents: List[str]):
-        """Add documents to the TF-IDF index."""
+        """Add documents to the FAISS index."""
         if not documents:
             return
-            
         self.documents = documents
-        
-        # Create TF-IDF matrix
-        self.tfidf_matrix = self.vectorizer.fit_transform(documents)
-        
-        logging.info(f"Added {len(documents)} documents to TF-IDF index")
+        # Generate dense embeddings
+        self.doc_embeddings = self.embedder.encode(documents, show_progress_bar=False, convert_to_numpy=True)
+        # Build FAISS index
+        dim = self.doc_embeddings.shape[1]
+        self.faiss_index = faiss.IndexFlatL2(dim)
+        self.faiss_index.add(self.doc_embeddings)
+        logging.info(f"Added {len(documents)} documents to FAISS index")
     
     @lru_cache(maxsize=1000)
     def _cached_retrieve(self, query: str, top_k: int = 3) -> tuple:
-        """Cached retrieval for repeated queries."""
-        if not self.tfidf_matrix is not None or not self.documents:
+        """Cached retrieval for repeated queries using FAISS."""
+        if self.faiss_index is None or not self.documents:
             return ()
         
-        # Transform query
-        query_vector = self.vectorizer.transform([query])
+        # Embed the query
+        query_embedding = self.embedder.encode([query], show_progress_bar=False, convert_to_numpy=True)
         
-        # Calculate cosine similarity
-        similarities = cosine_similarity(query_vector, self.tfidf_matrix).flatten()
+        # Search FAISS index
+        D, I = self.faiss_index.search(query_embedding, top_k)
         
-        # Get top k most similar documents
-        top_indices = similarities.argsort()[-top_k:][::-1]
+        # Return relevant documents with scores (distance)
+        retrieved_docs = [(self.documents[i], float(D[0][rank])) for rank, i in enumerate(I[0]) if i < len(self.documents)]
         
-        # Return relevant documents with scores
-        retrieved_docs = [(self.documents[i], similarities[i]) for i in top_indices if similarities[i] > 0.01]
-        
-        # If no documents found with threshold, return at least the top document
-        if not retrieved_docs and len(top_indices) > 0:
-            retrieved_docs = [(self.documents[top_indices[0]], similarities[top_indices[0]])]
-            
         return tuple(retrieved_docs)
     
     def retrieve(self, query: str, top_k: int = 3) -> List[str]:
-        """Fast retrieval using TF-IDF and cosine similarity with caching."""
+        """Fast retrieval using FAISS and dense embeddings with caching."""
         cached_result = self._cached_retrieve(query, top_k)
         return [doc for doc, score in cached_result]
     
@@ -153,7 +141,7 @@ class FastRAG:
     def generate_response(self, query: str, context: List[str]) -> str:
         """Generate response using Groq LLM with caching."""
         if not context:
-            return "I don't have enough information to answer that question."
+            return "I don't have enough information to answer that question. you can reach out to our team at info@technologymindz.com"
         
         # Check cache first
         cache_key = f"{query}:{hash(tuple(context))}"
@@ -165,7 +153,7 @@ class FastRAG:
         context_text = "\n".join(context)
         
         # Optimized prompt for faster generation
-        prompt = f"""Answer based only on the context. Be concise and direct.
+        prompt = f"""Answer based only on the context.dont greet the user. Be friendly and focused on the question.
 
 Context: {context_text}
 Question: {query}

@@ -65,10 +65,10 @@ async def gather_speech(request: Request):
         
         if attempt_count == 0:
             # First attempt - professional greeting
-            response.say("Hello, this is Roney, your virtual assistant at Technology Mindz. I'm here to help you with our software development, AI, and Salesforce services. Please tell me how I can assist you today.")
+            response.say("Hello, this is Roney, your virtual assistant at Technology Mindz, I'm here to help you with our software development, AI, and Salesforce services")
         elif attempt_count == 1:
             # Second attempt - gentle reminder
-            response.say("I didn't catch that. Please speak clearly and let me know what you need help with. You can ask about our services, contact information, or any questions about Technology Mindz.")
+            response.say("Please speak clearly and let me know what you need help with")
         elif attempt_count == 2:
             # Third attempt - alternative options
             response.say("I'm having trouble hearing you. You can also reach us at +1 (888) 982-4016 or email us at info@technologymindz.com for immediate assistance. Thank you for calling Technology Mindz.")
